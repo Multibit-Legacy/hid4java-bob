@@ -41,13 +41,38 @@ public class HidManager {
   private static HidServices hidServices = null;
 
   /**
-   * @return A single instance of the HID services
+   * <p>Simple service provider providing generally safe defaults. If you find you are experiencing problems, particularly
+   * with constrained devices, consider exploring the {@link HidServicesSpecification} options.</p>
+   *
+   * @return A single instance of the HID services using the default specification
    */
   public static HidServices getHidServices() throws HidException {
 
     synchronized (servicesLock) {
       if (null == hidServices) {
-        hidServices = new HidServices();
+        // Use defaults
+        hidServices = getHidServices(new HidServicesSpecification());
+      }
+    }
+
+    return hidServices;
+
+  }
+
+  /**
+   * <p>Fully configurable service provider</p>
+   *
+   * @param hidServicesSpecification Provides various parameters for configuring HID services
+   *
+   * @return A single instance of the HID services using specified parameters
+   *
+   * @since 0.5.0
+   */
+  public static HidServices getHidServices(HidServicesSpecification hidServicesSpecification) throws HidException {
+
+    synchronized (servicesLock) {
+      if (null == hidServices) {
+        hidServices = new HidServices(hidServicesSpecification);
       }
     }
 

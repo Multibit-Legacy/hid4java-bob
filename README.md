@@ -4,7 +4,7 @@ Status: [![Build Status](https://travis-ci.org/gary-rowe/hid4java.png?branch=mas
 
 Release: Available for production work
 
-Latest release: 0.3.1
+Latest release: [![Maven Central](https://maven-badges.herokuapp.com/maven-central/org.hid4java/hid4java/badge.svg)](https://maven-badges.herokuapp.com/maven-central/org.hid4java/hid4java)
 
 ### Summary 
 
@@ -22,28 +22,7 @@ The wiki provides a [guide to building the project](https://github.com/gary-rowe
 
 ### Maven dependency
 
-I've not gotten around to putting this into Maven Central (it's on my list) so as an interim measure please use the following
-configuration in your projects:
 ```xml
-<repositories>
-
-  <repository>
-    <id>mbhd-maven-release</id>
-    <url>https://raw.github.com/bitcoin-solutions/mbhd-maven/master/releases</url>
-    <releases/>
-  </repository>
-
-  <!-- Only include the snapshot repo if you're working with the latest hid4java on develop -->
-  <repository>
-    <id>mbhd-maven-snapshot</id>
-    <url>https://raw.github.com/bitcoin-solutions/mbhd-maven/master/snapshots</url>
-    <!-- These artifacts change frequently during development iterations -->
-    <snapshots>
-      <updatePolicy>always</updatePolicy>
-    </snapshots>
-  </repository>
-
-</repositories>
 
 <dependencies>
 
@@ -51,12 +30,13 @@ configuration in your projects:
   <dependency>
     <groupId>org.hid4java</groupId>
     <artifactId>hid4java</artifactId>
-    <version>0.3.1</version>
+    <version>0.4.0</version>
   </dependency>
 
 </dependencies>
 
 ```
+
 
 ### Code example
 
@@ -88,6 +68,9 @@ if (val != -1) {
 } else {
   System.err.println(trezor.getLastErrorMessage());
 }
+
+// Clean shutdown
+hidServices.shutdown();
     
 ```
  
@@ -102,10 +85,11 @@ cd <project directory>
 mvn clean install
 ```
 
-and you're good to go. Your next step is to explore the examples (e.g. `UsbHidTrezorV1Example`). From the command line:
+and you're good to go. If you're in an IDE then you can use `src/test/java/org/hid4java/UsbHidTrezorV1Example`) to verify correct
+operation. From the command line:
 
 ```
-mvn clean compile exec:java -Dexec.mainClass="UsbHidTrezorV1Example"
+ mvn clean test exec:java -Dexec.classpathScope="test" -Dexec.mainClass="org.hid4java.UsbHidDeviceExample"
 ```
 If you have a Trezor device attached you'll see a "Features" message appear as a big block of hex otherwise it will be
 just a simple enumeration of attached USB devices. You can plug various devices in and out to see messages.
@@ -131,10 +115,43 @@ you apply a workaround (such as adding a kernel extension) then it will still fa
 little later in the process. The bottom line is that you *must* use hidapi to communicate with HID
 devices on OS X.
 
-#### Is this going into Maven Central ?
+#### Is the latest code in Maven Central ?
 
-Yes. There's a bit of general tidying work left to do to take it to a first release but when that's 
-done it will be uploaded to Maven Central. 
+Yes but not the older versions at present. If you need to use the older code for some
+reason, you'll need to add this to your project's `pom.xml`.
+```xml
+<repositories>
+
+  <repository>
+    <id>mbhd-maven-release</id>
+    <url>https://raw.github.com/bitcoin-solutions/mbhd-maven/master/releases</url>
+    <releases/>
+  </repository>
+
+  <!-- Only include the snapshot repo if you're working with the latest hid4java on develop -->
+  <repository>
+    <id>mbhd-maven-snapshot</id>
+    <url>https://raw.github.com/bitcoin-solutions/mbhd-maven/master/snapshots</url>
+    <!-- These artifacts change frequently during development iterations -->
+    <snapshots>
+      <updatePolicy>always</updatePolicy>
+    </snapshots>
+  </repository>
+
+</repositories>
+
+<dependencies>
+
+  <!-- hid4java for cross-platform HID USB -->
+  <dependency>
+    <groupId>org.hid4java</groupId>
+    <artifactId>hid4java</artifactId>
+    <version>0.4.0</version>
+  </dependency>
+
+</dependencies>
+
+```
  
 #### Can I just copy this code into my project ?
 
@@ -152,9 +169,12 @@ The following are known issues and their solutions or workarounds.
 
 #### I get a `SIGSEGV (0xb)` when starting up
 
-This shouldn't occur unless you've been changing the code. 
+This shouldn't occur unless you've been changing the code.
+
 You have probably got the `getFieldOrder` list wrong. Use the field list from Class.getFields() to get a suitable order.
 Another cause is if a `Structure` has not been initialised and is being deferenced, perhaps in a `toString()` method.
+
+There is also the possibility that using the built-in `HidDeviceManager` code can cause problems in some applications.
 
 #### I get a "The parameter is incorrect" when writing
 
@@ -197,11 +217,19 @@ Save and exit from root, then unplug and replug your device. The rules should ta
 sudo addgroup plugdev
 sudo addgroup yourusername plugdev
 ```
+
 ##### Slackware
 Edit the USB udev rules `/etc/udev/rules.d` as follows:
 ```
 MODE="0666", GROUP="dialout"
 ```
+
+##### ARM
+Running on ARM machines you may encounter problems due to a missing library. This is just a naming issue for the `udev` library and can be resolved using the following command (or equivalent for your system):
+```
+sudo ln -sf /lib/arm-linux-gnueabihf/libudev.so.1 /lib/arm-linux-gnueabihf/libudev.so.0
+```
+Thanks to @MaxRoma for that one!
 
 #### My device doesn't work on Windows
 

@@ -25,7 +25,6 @@
 
 package org.hid4java.jna;
 
-import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
 
@@ -59,6 +58,18 @@ public class HidApi {
    * The HID API library
    */
   private static final HidApiLibrary hidApiLibrary = HidApiLibrary.INSTANCE;
+
+  /**
+   * <p>True if the report ID should be dropped from the write buffer
+   * Normally this should be false but on Windows 8, 10 it appears to be
+   * necessary when the device only has a single report available.</p>
+   *
+   * <p>After this class has initialised this value can be modified at
+   * any time if you find that you do need the report ID to be included.</p>
+   *
+   * <p>See https://github.com/gary-rowe/hid4java/issues/36 for more information.</p>
+   */
+  public static boolean dropReportIdZero = false;
 
   /**
    * <p>Open a HID device using a Vendor ID (VID), Product ID (PID) and optionally a serial number</p>
@@ -393,20 +404,11 @@ public class HidApi {
 
     final WideStringBuffer report;
 
-    if (Platform.isWindows() && reportId == 0) {
-      // Compensate on Windows for 0x00 report ID misalignment
-      // This avoids "The parameter is incorrect" on Windows
-      report = new WideStringBuffer(len);
-      if (len > 1) {
-        System.arraycopy(data, 0, report.buffer, 0, len);
-      }
-    } else {
-      // Put report ID into position 0 and fill out buffer
-      report = new WideStringBuffer(len + 1);
-      report.buffer[0] = reportId;
-      if (len > 1) {
-        System.arraycopy(data, 0, report.buffer, 1, len);
-      }
+    // Put report ID into position 0 and fill out buffer
+    report = new WideStringBuffer(len + 1);
+    report.buffer[0] = reportId;
+    if (len > 1) {
+      System.arraycopy(data, 0, report.buffer, 1, len);
     }
     return hidApiLibrary.hid_write(device.ptr(), report, report.buffer.length);
 

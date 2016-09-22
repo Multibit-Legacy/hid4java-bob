@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2014-2015 Gary Rowe
+ * Copyright (c) 2014-2016 Gary Rowe
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,7 @@
  *
  */
 
-import org.hid4java.*;
-import org.hid4java.event.HidServicesEvent;
+package org.hid4java;import org.hid4java.event.HidServicesEvent;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,25 +35,36 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  * @since 0.0.1
  *  
  */
-public class UsbHidTrezorV1Example implements HidServicesListener {
+public class UsbHidDeviceExample implements HidServicesListener {
 
-  static final int PACKET_LENGTH = 64;
-  private HidServices hidServices;
+  private static final Integer VENDOR_ID = 0x534c;
+  private static final Integer PRODUCT_ID = 0x01;
+  private static final int PACKET_LENGTH = 64;
+  public static final String SERIAL_NUMBER = null;
 
   public static void main(String[] args) throws HidException {
 
-    UsbHidTrezorV1Example example = new UsbHidTrezorV1Example();
+    UsbHidDeviceExample example = new UsbHidDeviceExample();
     example.executeExample();
 
   }
 
   public void executeExample() throws HidException {
 
-    System.out.println("Loading hidapi...");
+    // Configure to use custom specification
+    HidServicesSpecification hidServicesSpecification = new HidServicesSpecification();
+    hidServicesSpecification.setAutoShutdown(true);
+    hidServicesSpecification.setScanInterval(500);
+    hidServicesSpecification.setPauseInterval(5000);
+    hidServicesSpecification.setScanMode(ScanMode.SCAN_AT_FIXED_INTERVAL_WITH_PAUSE_AFTER_WRITE);
 
-    // Get HID services
-    hidServices = HidManager.getHidServices();
+    // Get HID services using custom specification
+    HidServices hidServices = HidManager.getHidServices(hidServicesSpecification);
     hidServices.addHidServicesListener(this);
+
+    // Start the services
+    System.out.println("Starting HID services.");
+    hidServices.start();
 
     System.out.println("Enumerating attached devices...");
 
@@ -63,22 +73,25 @@ public class UsbHidTrezorV1Example implements HidServicesListener {
       System.out.println(hidDevice);
     }
 
-    // Open the Trezor device by Vendor ID and Product ID with wildcard serial number
-    HidDevice trezor = hidServices.getHidDevice(0x534c, 0x01, null);
-    if (trezor != null) {
-      // Device is already attached so send message
-      sendInitialise(trezor);
-    } else {
-      System.out.println("Waiting for Trezor attach...");
+    // Open the device device by Vendor ID and Product ID with wildcard serial number
+    HidDevice hidDevice = hidServices.getHidDevice(VENDOR_ID, PRODUCT_ID, SERIAL_NUMBER);
+    if (hidDevice != null) {
+      // Consider overriding dropReportIdZero on Windows
+      // if you see "The parameter is incorrect"
+      // HidApi.dropReportIdZero = true;
+
+      // Device is already attached and successfully opened so send message
+      sendMessage(hidDevice);
     }
+
+    System.out.printf("Waiting 30s to demonstrate attach/detach handling. Watch for slow response after write if configured.%n");
+
     // Stop the main thread to demonstrate attach and detach events
-    sleepUninterruptibly(5, TimeUnit.SECONDS);
+    sleepUninterruptibly(30, TimeUnit.SECONDS);
 
-    if (trezor != null && trezor.isOpen()) {
-      trezor.close();
-    }
+    // Shut down and rely on auto-shutdown hook to clear HidApi resources
+    hidServices.shutdown();
 
-    System.exit(0);
   }
 
   @Override
@@ -86,15 +99,10 @@ public class UsbHidTrezorV1Example implements HidServicesListener {
 
     System.out.println("Device attached: " + event);
 
-    if (event.getHidDevice().getVendorId() == 0x534c &&
-      event.getHidDevice().getProductId() == 0x01) {
-
-      // Open the Trezor device by Vendor ID and Product ID with wildcard serial number
-      HidDevice trezor = hidServices.getHidDevice(0x534c, 0x01, null);
-      if (trezor != null) {
-        sendInitialise(trezor);
-      }
-
+    // Add serial number when more than one device with the same
+    // vendor ID and product ID will be present at the same time
+    if (event.getHidDevice().isVidPidSerial(VENDOR_ID, PRODUCT_ID, null)) {
+      sendMessage(event.getHidDevice());
     }
 
   }
@@ -113,19 +121,25 @@ public class UsbHidTrezorV1Example implements HidServicesListener {
 
   }
 
-  private void sendInitialise(HidDevice trezor) {
+  private void sendMessage(HidDevice hidDevice) {
+
+    // Ensure device is open after an attach/detach event
+    if (!hidDevice.isOpen()) {
+      hidDevice.open();
+    }
 
     // Send the Initialise message
-    byte[] message = new byte[64];
-    message[0] = 0x3f;
-    message[1] = 0x23;
-    message[2] = 0x23;
+    byte[] message = new byte[PACKET_LENGTH];
+    message[0] = 0x3f; // USB: Payload 63 bytes
+    message[1] = 0x23; // Device: '#'
+    message[2] = 0x23; // Device: '#'
+    message[3] = 0x00; // INITIALISE
 
-    int val = trezor.write(message, PACKET_LENGTH, (byte) 0);
-    if (val != -1) {
+    int val = hidDevice.write(message, PACKET_LENGTH, (byte) 0x00);
+    if (val >= 0) {
       System.out.println("> [" + val + "]");
     } else {
-      System.err.println(trezor.getLastErrorMessage());
+      System.err.println(hidDevice.getLastErrorMessage());
     }
 
     // Prepare to read a single data packet
@@ -133,10 +147,10 @@ public class UsbHidTrezorV1Example implements HidServicesListener {
     while (moreData) {
       byte data[] = new byte[PACKET_LENGTH];
       // This method will now block for 500ms or until data is read
-      val = trezor.read(data, 500);
+      val = hidDevice.read(data, 500);
       switch (val) {
         case -1:
-          System.err.println(trezor.getLastErrorMessage());
+          System.err.println(hidDevice.getLastErrorMessage());
           break;
         case 0:
           moreData = false;
