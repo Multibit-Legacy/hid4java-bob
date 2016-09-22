@@ -4,7 +4,7 @@
 
   <groupId>org.hid4java</groupId>
   <artifactId>hid4java-bob</artifactId>
-  <version>0.4.0-bob-0.1.0</version>
+  <version>develop-SNAPSHOT</version>
 
   <name>hid4java-bob</name>
   <description>A fork of the hid4java project (https://github.com/gary-rowe/hid4java)</description>
@@ -89,7 +89,7 @@
     <connection>scm:git:git@github.com:keepkey/hid4java-bob.git</connection>
     <developerConnection>scm:git:git@github.com:keepkey/hid4java-bob.git</developerConnection>
     <url>git@github.com:keepkey/hid4java-bob.git</url>
-    <tag>0.4.0-bob-0.1.0</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <properties>
